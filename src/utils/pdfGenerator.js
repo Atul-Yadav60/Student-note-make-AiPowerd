@@ -1,0 +1,225 @@
+import jsPDF from "jspdf";
+
+/**
+ * Generate and download PDF from notes
+ */
+export function generatePDF(notesData) {
+  const {
+    title,
+    subject,
+    summary,
+    keyPoints,
+    flashcards,
+    questions,
+    createdAt,
+  } = notesData;
+
+  const pdf = new jsPDF();
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 20;
+  const maxWidth = pageWidth - margin * 2;
+  let yPosition = margin;
+
+  // Helper to add new page if needed
+  const checkPageBreak = (requiredSpace = 20) => {
+    if (yPosition + requiredSpace > pageHeight - margin) {
+      pdf.addPage();
+      yPosition = margin;
+      return true;
+    }
+    return false;
+  };
+
+  // Helper to add text with word wrap
+  const addText = (text, fontSize = 11, isBold = false) => {
+    pdf.setFontSize(fontSize);
+    pdf.setFont(undefined, isBold ? "bold" : "normal");
+
+    const lines = pdf.splitTextToSize(text, maxWidth);
+    lines.forEach((line) => {
+      checkPageBreak();
+      pdf.text(line, margin, yPosition);
+      yPosition += fontSize * 0.5;
+    });
+    yPosition += 5;
+  };
+
+  // Title
+  pdf.setFillColor(79, 70, 229);
+  pdf.rect(0, 0, pageWidth, 40, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(24);
+  pdf.setFont(undefined, "bold");
+  pdf.text(title || "Study Notes", margin, 25);
+
+  yPosition = 50;
+  pdf.setTextColor(0, 0, 0);
+
+  // Metadata
+  if (subject) {
+    pdf.setFontSize(10);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(`Subject: ${subject}`, margin, yPosition);
+    yPosition += 6;
+  }
+
+  if (createdAt) {
+    pdf.setFontSize(10);
+    pdf.setTextColor(107, 114, 128);
+    const date = new Date(createdAt).toLocaleDateString();
+    pdf.text(`Generated: ${date}`, margin, yPosition);
+    yPosition += 15;
+  } else {
+    yPosition += 10;
+  }
+
+  pdf.setTextColor(0, 0, 0);
+
+  // Summary Section
+  if (summary) {
+    checkPageBreak(30);
+    pdf.setFillColor(249, 250, 251);
+    pdf.rect(margin - 5, yPosition - 5, maxWidth + 10, 12, "F");
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, "bold");
+    pdf.setTextColor(79, 70, 229);
+    pdf.text("Summary", margin, yPosition + 5);
+    yPosition += 20;
+
+    pdf.setTextColor(0, 0, 0);
+    const summaryLines = summary.split("\n").filter((line) => line.trim());
+    summaryLines.forEach((line) => {
+      checkPageBreak(15);
+      addText(line, 11);
+    });
+    yPosition += 10;
+  }
+
+  // Key Points Section
+  if (keyPoints && keyPoints.length > 0) {
+    checkPageBreak(30);
+    pdf.setFillColor(249, 250, 251);
+    pdf.rect(margin - 5, yPosition - 5, maxWidth + 10, 12, "F");
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, "bold");
+    pdf.setTextColor(79, 70, 229);
+    pdf.text("Key Points", margin, yPosition + 5);
+    yPosition += 20;
+
+    pdf.setTextColor(0, 0, 0);
+    keyPoints.forEach((point, index) => {
+      checkPageBreak(15);
+      addText(`${index + 1}. ${point}`, 11);
+    });
+    yPosition += 10;
+  }
+
+  // Flashcards Section
+  if (flashcards && flashcards.length > 0) {
+    checkPageBreak(30);
+    pdf.setFillColor(249, 250, 251);
+    pdf.rect(margin - 5, yPosition - 5, maxWidth + 10, 12, "F");
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, "bold");
+    pdf.setTextColor(79, 70, 229);
+    pdf.text("Flashcards", margin, yPosition + 5);
+    yPosition += 20;
+
+    pdf.setTextColor(0, 0, 0);
+    flashcards.forEach((card, index) => {
+      checkPageBreak(25);
+      addText(`Q${index + 1}: ${card.question}`, 11, true);
+      addText(`A: ${card.answer}`, 10);
+      yPosition += 5;
+    });
+  }
+
+  // Practice Questions Section
+  if (questions && questions.length > 0) {
+    checkPageBreak(30);
+    pdf.setFillColor(249, 250, 251);
+    pdf.rect(margin - 5, yPosition - 5, maxWidth + 10, 12, "F");
+    pdf.setFontSize(16);
+    pdf.setFont(undefined, "bold");
+    pdf.setTextColor(79, 70, 229);
+    pdf.text("Practice Questions", margin, yPosition + 5);
+    yPosition += 20;
+
+    pdf.setTextColor(0, 0, 0);
+    questions.forEach((q, index) => {
+      checkPageBreak(40);
+      addText(
+        `${index + 1}. ${q.question} [${q.type.toUpperCase()}]`,
+        11,
+        true
+      );
+
+      if (q.options) {
+        q.options.forEach((option) => {
+          checkPageBreak(10);
+          addText(`   ${option}`, 10);
+        });
+      }
+
+      const correctAnswer = Array.isArray(q.correct)
+        ? q.correct.join(", ")
+        : q.correct;
+      addText(`   ✓ Correct: ${correctAnswer}`, 10, true);
+
+      if (q.explanation) {
+        addText(`   Explanation: ${q.explanation}`, 9);
+      }
+      yPosition += 8;
+    });
+  }
+
+  // Footer
+  const totalPages = pdf.internal.pages.length - 1;
+  for (let i = 1; i <= totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setFontSize(8);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(
+      `Page ${i} of ${totalPages} | Generated by Student Notes Maker`,
+      pageWidth / 2,
+      pageHeight - 10,
+      { align: "center" }
+    );
+  }
+
+  // Download
+  const filename = `${(title || "notes").replace(
+    /[^a-z0-9]/gi,
+    "_"
+  )}_${Date.now()}.pdf`;
+  pdf.save(filename);
+}
+
+/**
+ * Copy text to clipboard
+ */
+export async function copyToClipboard(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    console.error("Failed to copy:", error);
+    return false;
+  }
+}
+
+/**
+ * Download text as file
+ */
+export function downloadText(text, filename = "notes.txt") {
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
